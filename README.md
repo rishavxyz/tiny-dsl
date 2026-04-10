@@ -8,7 +8,7 @@ A small script to make functions
 // start with defining tge function
 defineCommand({ name: string, args: ["int", "int"], exec: ([a, b]) => a+b })
 // then parse & execute the command
-parse(name: string, data: string)
+parse(data: string)
 ```
 
 ### defineCommand
@@ -17,9 +17,11 @@ This is the function you use to create the function.
 
 **params**
 
-name (string) = The name of your function.
-args (argType[]) where argType is "int" | "str" = Arguments your function will have and its type.
-exec (Function | Async Function | AsyncGenerator) = This is where you write the purpose of your function.
+`name = string` Name of the function.
+
+`args = ArgType[]` The parameters and its type the function will have.
+
+`exec = AsyncGenerator | Promise | any` It is the function where you define the purpose of your function.
 
 ### Streaming
 
@@ -43,7 +45,7 @@ dsl.defineCommand({
 
 // await stream to output both yield and return value
 // last parameter is callback
-await dsl.stream(dsl.parse("weather", "weather(kolkata)"), console.log);
+await dsl.stream(dsl.parse("weather(kolkata)"), console.log);
 ```
 
 ### Preview of weather(city)
