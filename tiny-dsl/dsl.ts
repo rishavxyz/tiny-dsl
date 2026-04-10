@@ -44,7 +44,7 @@ class TinyDsl {
       }
     }
 
-    return Promise.resolve(out) as T;
+    return out as T;
   }
 
   async stream<T>(data: AsyncGenerator<any, T, any>, callback: (t: T) => void) {
@@ -60,9 +60,10 @@ class TinyDsl {
   private fnLookup(sv: StringView): Command {
     sv.trim();
     const start = sv.mark();
+
     while (sv.head() != "(") {
       const ch = sv.head();
-      if (isAlpha(ch)) sv.skipMust(ch);
+      if (isAlpha(ch)) sv.skip();
       else throw new SyntaxError(`function name must be [a-zA-Z]. got ${ch}`);
     }
     sv.goto(start)
@@ -91,6 +92,7 @@ class TinyDsl {
       }
 
       const _sv = new StringView(valRaw);
+      _sv.trim();
       _sv.trimEnd();
       const val = _sv.toString();
 
