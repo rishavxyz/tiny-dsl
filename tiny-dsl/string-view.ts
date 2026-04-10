@@ -137,6 +137,12 @@ class StringView {
   toString(): string {
     return this.sv.data.substring(this.sv.start, this._());
   }
+
+  [Symbol.dispose]() {
+    this.sv.data = "";
+    this.sv.start = 0;
+    this.sv.len = 0;
+  }
 }
 
 export default StringView;

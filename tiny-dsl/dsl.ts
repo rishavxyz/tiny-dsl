@@ -21,7 +21,7 @@ class TinyDsl {
   }
 
   parse<T>(data: string): T {
-    const sv = new StringView(data);
+    using sv = new StringView(data);
     const cmd = this.fnLookup(sv);
     const args = this.argparse(sv, cmd);
     const out = this.execute(cmd, args);
@@ -29,7 +29,7 @@ class TinyDsl {
   }
 
   async *parseAsync<T>(data: string): AsyncGenerator<any, T, any> {
-    const sv = new StringView(data);
+    using sv = new StringView(data);
     const cmd = this.fnLookup(sv);
     const args = this.argparse(sv, cmd);
     const out = this.execute(cmd, args);
@@ -91,7 +91,7 @@ class TinyDsl {
         sv.skipMust(")");
       }
 
-      const _sv = new StringView(valRaw);
+      using _sv = new StringView(valRaw);
       _sv.trim();
       _sv.trimEnd();
       const val = _sv.toString();
