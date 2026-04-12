@@ -1,3 +1,4 @@
+import ParseError from "./error.ts";
 import { isSpace } from "./string-utils.ts";
 
 export interface SV {
@@ -7,6 +8,7 @@ export interface SV {
 };
 
 type Predicate = ((ch: string) => boolean) | string;
+type Marker = [start: number, end: number];
 
 class StringView {
   private sv: SV = {
@@ -34,36 +36,33 @@ class StringView {
     this.sv.len = this.sv.data.length;
   }
 
-  mark(): [start: number, len: number] {
-    return [this.sv.start, this.sv.len];
+  get at(): number {
+    return this.sv.start;
   }
 
-  goto([start, len]: [start: number, len: number]) {
+  mark(start?: number, end?: number): Marker {
+    return [start ?? this.sv.start, end ?? this.sv.len];
+  }
+
+  goto([start, end]: Marker) {
     const totalLen = this.sv.data.length;
-    if (start < 0 || start > totalLen || len < 0 || len > totalLen)
-      throw new Error(`start ${start} and len ${len} are out of range`);
+    if (start < 0 || start > totalLen || end < 0 || end > totalLen)
+      throw new ParseError(`start ${start} and len ${end} are out of range`);
     this.sv.start = start;
-    this.sv.len = len;
+    this.sv.len = end;
   }
 
-  head(): string {
-    if (this.isEmpty()) return "";
-    return this.sv.data[this.sv.start]!;
-  }
+  peek(at?: number): string {
+    at ??= 0;
 
-  last(): string {
-    if (this.isEmpty()) return "";
-    return this.sv.data[this._() - 1]!;
-  }
+    if (this.isEmpty())
+      throw new ParseError("already at end of input");
+    if (at >= this.sv.len)
+      throw new ParseError("peeking more than input ends");
 
-  next(): string {
-    if (this.sv.len <= 1) return "";
-    return this.sv.data[this.sv.start + 1]!;
-  }
-
-  nextEnd(): string {
-    if (this.sv.len <= 1) return "";
-    return this.sv.data[this._() - 2]!;
+    const s = this.sv.data;
+    if (at < 0) return s[this._() + at]!;
+    return s[this.sv.start + at]!;
   }
 
   skip() {
@@ -78,33 +77,25 @@ class StringView {
   }
 
   skipMust(predicate: Predicate) {
-    const cur = this.sv.start;
+    if (this.isEmpty()) throw new ParseError(`unexpected end of input`, this.at);
 
-    if (this.isEmpty()) throw new SyntaxError(`${cur}: unexpected end of input`);
-
-    const ch = this.head();
-
+    const ch = this.peek();
     if (typeof predicate == "function") {
       if (predicate(ch)) this.skip();
-      else throw new SyntaxError(`${cur}: unexpected "${ch}"`);
+      else throw new ParseError(`unexpected "${ch}"`, this.at);
     } else {
       if (ch == predicate) this.skip();
-      else throw new SyntaxError(`${cur}: expected "${predicate}". got "${ch}"`);
+      else throw new ParseError(`expected "${predicate}". got "${ch}"`, this.at);
     }
   }
 
-  skipUntil(predicate: Predicate) {
+  *iter() {
+    const start = this.sv.start;
     while (!this.isEmpty()) {
-      let pred = false;
-      const ch = this.head();
-
-      if (typeof predicate == "function") {
-        pred = predicate(ch);
-      } else {
-        pred = ch == predicate;
+      yield {
+        consumed: this.sv.data[this.sv.start]!,
+        toString: () => this.sv.data.substring(start, this.sv.start)!
       }
-
-      if (pred) break;
       this.skip();
     }
   }
@@ -116,32 +107,59 @@ class StringView {
     return this.sv.data[this.sv.start - 1]!;
   }
 
-  consumeUntil(predicate: Predicate): string {
-    const b4 = this.sv.start;
-    this.skipUntil(predicate);
-    return this.sv.data.substring(b4, this.sv.start);
+  consumeUntil(ch: string, predicate?: (ch: string) => boolean): {
+    found: true,
+    marker: Marker,
+    toString: () => string,
+  } | {
+    found: false,
+    marker: undefined,
+    toString: undefined,
+  } {
+    const [start, end] = this.mark();
+    while (!this.isEmpty() && this.peek() != ch) {
+      const chNew = this.peek();
+
+      if (!predicate || predicate?.(chNew)) this.skip();
+      else throw new ParseError(`char "${chNew}" does not match the predicate ${predicate.name}.`, this.at);
+    }
+    const startAfterSkip = this.sv.start;
+
+    if (this.isEmpty()) {
+      this.goto([start, end]);
+      return { found: false, marker: undefined, toString: undefined };
+    }
+    return {
+      found: true,
+      marker: this.mark(start, startAfterSkip),
+      toString: () => {
+        if (this.sv.start != startAfterSkip)
+          throw new ParseError("data has been changed! did you mutate the data before calling toString?", this.at);
+        return this.toString(start, startAfterSkip)
+      }
+    };
   }
 
   trim() {
-    while (!this.isEmpty() && isSpace(this.head())) {
+    while (!this.isEmpty() && isSpace(this.peek())) {
       this.skip();
     }
   }
 
   trimEnd() {
-    while (!this.isEmpty() && isSpace(this.last())) {
+    while (!this.isEmpty() && isSpace(this.peek(-1))) {
       this.skipEnd();
     }
   }
 
-  toString(): string {
-    return this.sv.data.substring(this.sv.start, this._());
+  toString(start?: number, end?: number): string {
+    start ??= this.sv.start;
+    end ??= this._();
+    return this.sv.data.substring(start, end);
   }
 
-  [Symbol.dispose]() {
-    this.sv.data = "";
-    this.sv.start = 0;
-    this.sv.len = 0;
+  data(): string {
+    return this.sv.data;
   }
 }
 

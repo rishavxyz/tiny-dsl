@@ -15,9 +15,26 @@ dsl.defineCommand({
 });
 
 dsl.defineCommand({
+  name: "greet",
+  args: ["str"],
+  exec: ([name]) => `Hello ${name}! My name is YeltsaKcir.`
+});
+
+dsl.defineCommand({
+  name: "grok",
+  args: ["str"],
+  exec: ([qs]) => {
+    const s: string = qs;
+    const isAQuestion = s[s.length - 1] === "?";
+    if (!isAQuestion) return "It is not a question to ask.";
+    return Math.random() >= 0.666 ? `${qs} Yes.` : `${qs} No.`;
+  },
+});
+
+dsl.defineCommand({
   name: "weather",
   args: ["str"],
-  exec: async function* ([city]) {
+  exec: async function*([city]) {
 
     yield "getting coordinates...";
 
@@ -56,3 +73,9 @@ await dsl.stream<string>(
   dsl.parseAsync<string>(`weather("kolkata")`),
   console.log,
 );
+
+const out2 = dsl.parse(`greet("rishav")`);
+console.log(out2);
+
+const out3 = dsl.parse(`grok("Is Rishav awesome?")`);
+console.log(out3);
