@@ -82,7 +82,7 @@ class TinyDsl {
 
       const { found, toString } = sv.consumeUntil(target);
       if (!found) {
-        throw new ParseError(`col ${sv.at}: invalid syntax. missing "${target}"`);
+        throw new ParseError(`invalid syntax. missing "${target}"`, sv.at);
       }
       const valRaw = toString();
       sv.skipMust(target);

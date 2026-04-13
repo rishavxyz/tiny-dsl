@@ -23,33 +23,53 @@ class StringView {
     this.sv.len = data.length;
   }
 
-  private _(): number {
-    return this.sv.start + this.sv.len;
+  private get end(): number {
+    return this.sv.len;
   }
 
-  isEmpty(): boolean {
-    return this.sv.len == 0;
+  private set end(n: number) {
+    this.sv.len = n;
   }
 
-  reset() {
-    this.sv.start = 0;
-    this.sv.len = this.sv.data.length;
-  }
-
-  get at(): number {
+  private get start(): number {
     return this.sv.start;
   }
 
+  private set start(n: number) {
+    this.sv.start = n;
+  }
+
+  private get len(): number {
+    return this.start + this.end;
+  }
+
+  isEmpty(): boolean {
+    return this.end == 0;
+  }
+
+  reset() {
+    this.start = 0;
+    this.end = this.data.length;
+  }
+
+  get at(): number {
+    return this.start;
+  }
+
+  get data(): string {
+    return this.sv.data;
+  }
+
   mark(start?: number, end?: number): Marker {
-    return [start ?? this.sv.start, end ?? this.sv.len];
+    return [start ?? this.start, end ?? this.end];
   }
 
   goto([start, end]: Marker) {
-    const totalLen = this.sv.data.length;
+    const totalLen = this.data.length;
     if (start < 0 || start > totalLen || end < 0 || end > totalLen)
       throw new ParseError(`start ${start} and len ${end} are out of range`);
-    this.sv.start = start;
-    this.sv.len = end;
+    this.start = start;
+    this.end = end;
   }
 
   peek(at?: number): string {
@@ -57,23 +77,22 @@ class StringView {
 
     if (this.isEmpty())
       throw new ParseError("already at end of input");
-    if (at >= this.sv.len)
+    if (at >= this.end)
       throw new ParseError("peeking more than input ends");
 
-    const s = this.sv.data;
-    if (at < 0) return s[this._() + at]!;
-    return s[this.sv.start + at]!;
+    if (at < 0) return this.data[this.len + at]!;
+    return this.data[this.start + at]!;
   }
 
   skip() {
     if (this.isEmpty()) return;
-    this.sv.start++;
-    this.sv.len--;
+    this.start++;
+    this.end--;
   }
 
   skipEnd() {
     if (this.isEmpty()) return;
-    this.sv.len--;
+    this.end--;
   }
 
   skipMust(predicate: Predicate) {
@@ -90,11 +109,11 @@ class StringView {
   }
 
   *iter() {
-    const start = this.sv.start;
+    const start = this.start;
     while (!this.isEmpty()) {
       yield {
-        consumed: this.sv.data[this.sv.start]!,
-        toString: () => this.sv.data.substring(start, this.sv.start)!
+        consumed: this.data[this.start]!,
+        toString: () => this.data.substring(start, this.start)!
       }
       this.skip();
     }
@@ -102,9 +121,9 @@ class StringView {
 
   consume(): string {
     if (this.isEmpty()) return "";
-    this.sv.start++;
-    this.sv.len--;
-    return this.sv.data[this.sv.start - 1]!;
+    this.start++;
+    this.end--;
+    return this.data[this.start - 1]!;
   }
 
   consumeUntil(ch: string, predicate?: (ch: string) => boolean): {
@@ -123,7 +142,7 @@ class StringView {
       if (!predicate || predicate?.(chNew)) this.skip();
       else throw new ParseError(`char "${chNew}" does not match the predicate ${predicate.name}.`, this.at);
     }
-    const startAfterSkip = this.sv.start;
+    const startAfterSkip = this.start;
 
     if (this.isEmpty()) {
       this.goto([start, end]);
@@ -133,7 +152,7 @@ class StringView {
       found: true,
       marker: this.mark(start, startAfterSkip),
       toString: () => {
-        if (this.sv.start != startAfterSkip)
+        if (this.start != startAfterSkip)
           throw new ParseError("data has been changed! did you mutate the data before calling toString?", this.at);
         return this.toString(start, startAfterSkip)
       }
@@ -153,13 +172,9 @@ class StringView {
   }
 
   toString(start?: number, end?: number): string {
-    start ??= this.sv.start;
-    end ??= this._();
-    return this.sv.data.substring(start, end);
-  }
-
-  data(): string {
-    return this.sv.data;
+    start ??= this.start;
+    end ??= this.len;
+    return this.data.substring(start, end);
   }
 }
 

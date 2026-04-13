@@ -69,10 +69,11 @@ dsl.defineCommand({
 
 console.log(dsl.parse(`sayMyName("WW")`))
 console.log(dsl.parse("add(34, 35)"))
-await dsl.stream<string>(
-  dsl.parseAsync<string>(`weather("kolkata")`),
-  console.log,
-);
+
+// await dsl.stream<string>(
+//   dsl.parseAsync<string>(`weather("kolkata")`),
+//   console.log,
+// );
 
 const out2 = dsl.parse(`greet("rishav")`);
 console.log(out2);
