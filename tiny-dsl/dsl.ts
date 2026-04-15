@@ -1,5 +1,4 @@
 import ParseError from "./error";
-import { isAlpha } from "./string-utils";
 import StringView from "./string-view";
 
 export type ArgType = "int" | "str";
@@ -61,13 +60,12 @@ class TinyDsl {
   private fnLookup(sv: StringView): Command {
     sv.trim();
 
-    const { found, toString } = sv.consumeUntil("(", isAlpha);
-    if (!found)
-      throw new ParseError("function name must be [a-zA-Z]");
+    const fnName = sv.consumeUntil("(");
+    if (!sv.validate(fnName, "is-alpha"))
+      throw new ParseError(`invalid syntax: expected '('`);
 
-    const fnName = toString()
     const cmd = this.commands[fnName];
-    if (!cmd) throw new ParseError(`unknown function "${fnName}"`);
+    if (!cmd) throw new ParseError(`not found: ${fnName}`);
 
     sv.skipMust("(");
     sv.trim();
@@ -80,11 +78,9 @@ class TinyDsl {
     cmd.args.forEach((typ, i) => {
       const target = i == cmd.args.length - 1 ? ")" : ",";
 
-      const { found, toString } = sv.consumeUntil(target);
-      if (!found) {
-        throw new ParseError(`invalid syntax. missing "${target}"`, sv.at);
-      }
-      const valRaw = toString();
+      const valRaw = sv.consumeUntil(target);
+      if (!valRaw)
+        throw new ParseError(`invalid syntax: expected '${target}'`);
       sv.skipMust(target);
 
       const _sv = new StringView(valRaw);
@@ -95,17 +91,16 @@ class TinyDsl {
       switch (typ) {
         case "int":
           const n = Number(val);
-          if (Number.isNaN(n)) throw new ParseError(`expected a number. got "${val}"`, sv.at);
+          if (Number.isNaN(n))
+            throw new ParseError(`expected a number. got "${val}"`);
           args.push(n);
           break;
 
         case "str": {
           _sv.skipMust(`"`);
-          const { found, toString } = _sv.consumeUntil(`"`);
-          if (!found) {
-            throw new ParseError(`invalid syntax. missing '"'`, sv.at);
-          }
-          const val = toString();
+          const val = _sv.consumeUntil(`"`);
+          if (!val)
+            throw new ParseError(`invalid syntax: expected '"'`);
           _sv.skipMust(`"`);
           args.push(val);
           break;
@@ -114,6 +109,7 @@ class TinyDsl {
         default: throw new ParseError(`unknown type: "${typ}"`);
       }
     });
+
     return args;
   }
 

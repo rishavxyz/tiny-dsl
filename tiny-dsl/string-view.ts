@@ -1,180 +1,155 @@
 import ParseError from "./error.ts";
-import { isSpace } from "./string-utils.ts";
-
-export interface SV {
-  data: string;
-  start: number;
-  len: number;
-};
-
-type Predicate = ((ch: string) => boolean) | string;
-type Marker = [start: number, end: number];
 
 class StringView {
-  private sv: SV = {
-    data: "",
-    start: 0,
-    len: 0,
-  };
+  private data = "";
+  private cur = 0;
+  private len = 0;
 
   constructor(data: string) {
-    this.sv.data = data;
-    this.sv.start = 0;
-    this.sv.len = data.length;
-  }
-
-  private get end(): number {
-    return this.sv.len;
-  }
-
-  private set end(n: number) {
-    this.sv.len = n;
-  }
-
-  private get start(): number {
-    return this.sv.start;
-  }
-
-  private set start(n: number) {
-    this.sv.start = n;
-  }
-
-  private get len(): number {
-    return this.start + this.end;
-  }
-
-  isEmpty(): boolean {
-    return this.end == 0;
+    this.data = data;
+    this.cur = 0;
+    this.len = data.length;
   }
 
   reset() {
-    this.start = 0;
-    this.end = this.data.length;
+    this.cur = 0;
+    this.len = this.data.length;
   }
 
-  get at(): number {
-    return this.start;
+  mark(): number {
+    return (this.cur << 16) | this.len;
   }
 
-  get data(): string {
-    return this.sv.data;
+  goto(marker: number) {
+    this.cur = marker >> 16;
+    this.len = marker & 0xFFFF;
   }
 
-  mark(start?: number, end?: number): Marker {
-    return [start ?? this.start, end ?? this.end];
+  peek(at = this.cur): number {
+    const len = this.len;
+    const data = this.data;
+
+    if (at >= len) throw new ParseError("peeking empty string");
+    if (at < 0) data.charCodeAt(len + at);
+    return data.charCodeAt(at);
   }
 
-  goto([start, end]: Marker) {
-    const totalLen = this.data.length;
-    if (start < 0 || start > totalLen || end < 0 || end > totalLen)
-      throw new ParseError(`start ${start} and len ${end} are out of range`);
-    this.start = start;
-    this.end = end;
-  }
-
-  peek(at?: number): string {
-    at ??= 0;
-
-    if (this.isEmpty())
-      throw new ParseError("already at end of input");
-    if (at >= this.end)
-      throw new ParseError("peeking more than input ends");
-
-    if (at < 0) return this.data[this.len + at]!;
-    return this.data[this.start + at]!;
+  peekChar(offset = this.cur): string {
+    const ch = this.data.at(offset);
+    if (!ch) throw new ParseError("offset is out of bound");
+    return ch;
   }
 
   skip() {
-    if (this.isEmpty()) return;
-    this.start++;
-    this.end--;
+    if (this.cur >= this.len) return;
+    this.cur++;
   }
 
-  skipEnd() {
-    if (this.isEmpty()) return;
-    this.end--;
-  }
-
-  skipMust(predicate: Predicate) {
-    if (this.isEmpty()) throw new ParseError(`unexpected end of input`, this.at);
-
-    const ch = this.peek();
-    if (typeof predicate == "function") {
-      if (predicate(ch)) this.skip();
-      else throw new ParseError(`unexpected "${ch}"`, this.at);
-    } else {
-      if (ch == predicate) this.skip();
-      else throw new ParseError(`expected "${predicate}". got "${ch}"`, this.at);
-    }
-  }
-
-  *iter() {
-    const start = this.start;
-    while (!this.isEmpty()) {
-      yield {
-        consumed: this.data[this.start]!,
-        toString: () => this.data.substring(start, this.start)!
-      }
-      this.skip();
-    }
-  }
-
-  consume(): string {
-    if (this.isEmpty()) return "";
-    this.start++;
-    this.end--;
-    return this.data[this.start - 1]!;
-  }
-
-  consumeUntil(ch: string, predicate?: (ch: string) => boolean): {
-    found: true,
-    marker: Marker,
-    toString: () => string,
-  } | {
-    found: false,
-    marker: undefined,
-    toString: undefined,
-  } {
-    const [start, end] = this.mark();
-    while (!this.isEmpty() && this.peek() != ch) {
-      const chNew = this.peek();
-
-      if (!predicate || predicate?.(chNew)) this.skip();
-      else throw new ParseError(`char "${chNew}" does not match the predicate ${predicate.name}.`, this.at);
-    }
-    const startAfterSkip = this.start;
-
-    if (this.isEmpty()) {
-      this.goto([start, end]);
-      return { found: false, marker: undefined, toString: undefined };
-    }
-    return {
-      found: true,
-      marker: this.mark(start, startAfterSkip),
-      toString: () => {
-        if (this.start != startAfterSkip)
-          throw new ParseError("data has been changed! did you mutate the data before calling toString?", this.at);
-        return this.toString(start, startAfterSkip)
-      }
-    };
+  skipMust(expected: string) {
+    const ch = this.peekChar();
+    if (expected === ch) this.cur++;
+    else throw new ParseError(`expected '${expected}' got '${ch}'`);
   }
 
   trim() {
-    while (!this.isEmpty() && isSpace(this.peek())) {
-      this.skip();
+    let i = this.cur;
+    const len = this.len;
+    const data = this.data;
+
+    if (data.charCodeAt(i) > 32) return;
+    while (i < len) {
+      const c = data.charCodeAt(i);
+      if (c > 32) break;
+      i++;
     }
+    this.cur = i;
   }
 
   trimEnd() {
-    while (!this.isEmpty() && isSpace(this.peek(-1))) {
-      this.skipEnd();
+    let i = this.len;
+    const data = this.data;
+
+    if (data.charCodeAt(i - 1) > 32) return;
+    while (i > 0) {
+      const c = data.charCodeAt(i - 1);
+      if (c > 32) break;
+      i--;
     }
+    this.len = i;
+  }
+
+  consumeUntil(ch: string): string | undefined {
+    const start = this.cur;
+    const len = this.len;
+
+    if (start >= len) throw new ParseError("already at the end of view");
+
+    const i = this.data.indexOf(ch, start);
+    if (i < 0 || i >= len) return undefined;
+
+    this.cur = i;
+    return this.toString(start, i);
+  }
+
+  validate(
+    data: string | undefined,
+    typ: "is-alpha" | "is-alpha-num" | "is-space" | "is-num"
+  ): data is string {
+    if (!data || data.length === 0) return false;
+
+    const len = data.length;
+    for (let i = 0; i < len; i++) {
+      const c = data.charCodeAt(i);
+
+      switch (typ) {
+        case "is-alpha":
+          if (!this.isAlpha(c))
+            return false;
+          break;
+        case "is-alpha-num":
+          if (!this.isAlphaNum(c))
+            return false;
+          break;
+        case "is-space":
+          if (c > 32)
+            return false;
+          break;
+        case "is-num":
+          if (!this.isNum(c))
+            return false;
+          break;
+        default:
+          throw new ParseError("unknown type");
+      }
+    }
+    return true;
+  }
+
+  toAscii(ch: string): number {
+    return ch.charCodeAt(0);
   }
 
   toString(start?: number, end?: number): string {
-    start ??= this.start;
+    start ??= this.cur;
     end ??= this.len;
     return this.data.substring(start, end);
+  }
+
+  isAlpha(c: number): boolean {
+    const n = ((c | 32) - 97);
+    return n >= 0 && n <= 25;
+  }
+
+  isNum(c: number): boolean {
+    return c >= 48 && c <= 57;
+  }
+
+  isAlphaNum(c: number): boolean {
+    return this.isAlpha(c) || this.isNum(c);
+  }
+
+  isSpace(c: number): boolean {
+    return !(c > 32);
   }
 }
 
