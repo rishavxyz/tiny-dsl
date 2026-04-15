@@ -56,7 +56,8 @@ class StringView {
     const len = this.len;
     const data = this.data;
 
-    if (data.charCodeAt(i) > 32) return;
+    if (i >= len || data.charCodeAt(i) > 32) return;
+    i++;
     while (i < len) {
       const c = data.charCodeAt(i);
       if (c > 32) break;
@@ -66,16 +67,20 @@ class StringView {
   }
 
   trimEnd() {
-    let i = this.len;
+    const len = this.len;
+    const start = this.cur;
     const data = this.data;
 
-    if (data.charCodeAt(i - 1) > 32) return;
-    while (i > 0) {
-      const c = data.charCodeAt(i - 1);
+    let i = this.len - 1;
+
+    if (len <= start || data.charCodeAt(i) > 32) return;
+    i--;
+    while (i >= start) {
+      const c = data.charCodeAt(i);
       if (c > 32) break;
       i--;
     }
-    this.len = i;
+    this.len = i + 1;
   }
 
   consumeUntil(ch: string): string | undefined {
