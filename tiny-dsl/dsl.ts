@@ -1,7 +1,7 @@
 import ParseError from "./error";
 import StringView from "./string-view";
 
-export type ArgType = "int" | "str";
+export type ArgType = "int" | "str" | "any";
 
 export type Command = {
   name: string;
@@ -89,6 +89,8 @@ class TinyDsl {
       const val = _sv.toString();
 
       switch (typ) {
+        case "any": args.push(val); break;
+
         case "int":
           const n = Number(val);
           if (Number.isNaN(n))
@@ -97,11 +99,12 @@ class TinyDsl {
           break;
 
         case "str": {
-          _sv.skipMust(`"`);
-          const val = _sv.consumeUntil(`"`);
+          const quote = _sv.peekChar() == `"` ? `"` : `'`;
+          _sv.skipMust(quote);
+          const val = _sv.consumeUntil(quote);
           if (!val)
             throw new ParseError(`invalid syntax: expected '"'`);
-          _sv.skipMust(`"`);
+          _sv.skipMust(quote);
           args.push(val);
           break;
         }

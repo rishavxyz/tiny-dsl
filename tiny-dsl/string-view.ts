@@ -11,13 +11,21 @@ class StringView {
     this.len = data.length;
   }
 
+  get pos() {
+    return this.cur;
+  }
+
+  set pos(n: number) {
+    this.cur = n;
+  }
+
   reset() {
     this.cur = 0;
     this.len = this.data.length;
   }
 
-  mark(): number {
-    return (this.cur << 16) | this.len;
+  mark(cur = this.cur, len = this.len): number {
+    return (cur << 16) | len;
   }
 
   goto(marker: number) {
@@ -38,6 +46,12 @@ class StringView {
     const ch = this.data.at(offset);
     if (!ch) throw new ParseError("offset is out of bound");
     return ch;
+  }
+
+  indexOf(ch: string): number {
+    const i = this.data.indexOf(ch, this.cur);
+    if (i < 0 || i >= this.len) return -1;
+    return i;
   }
 
   skip() {
@@ -81,6 +95,16 @@ class StringView {
       i--;
     }
     this.len = i + 1;
+  }
+
+  skipUntil(ch: string) {
+    const start = this.cur;
+    const len = this.len;
+
+    if (start >= len) throw new ParseError("already at the end of view");
+
+    const i = this.data.indexOf(ch, start);
+    if (i >= 0 && i < len) this.cur = i;
   }
 
   consumeUntil(ch: string): string | undefined {
